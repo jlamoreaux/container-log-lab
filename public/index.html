@@ -90,6 +90,7 @@
             <div class="scenario"><span class="index">04</span><div><strong>Slow request</strong><p>Wait two seconds to make timing visible in traces.</p></div><button data-scenario="slow">Run test</button></div>
              <div class="scenario"><span class="index">05</span><div><strong>Handled error</strong><p>Return an intentional HTTP 500 with error logs at both layers.</p></div><button data-scenario="error">Run test</button></div>
              <div class="scenario"><span class="index">06</span><div><strong>Five-activity journey</strong><p>Prepare, filter, aggregate, enrich, and checksum in one request and trace. Open the run timeline to see all five spans.</p></div><button data-scenario="journey">Run journey</button></div>
+             <div class="scenario"><span class="index">07</span><div><strong>Shell steps</strong><p>Run five mock CLI-style commands through a Bash wrapper. See a log and duration for each command, under one request ID.</p></div><button data-scenario="shell">Run shell</button></div>
           </section>
           <aside class="right">
             <section class="card steps" aria-labelledby="guide-title">
@@ -148,7 +149,7 @@
             addResult('NETWORK', scenario, 'unavailable', Math.round(performance.now() - started), {});
           } finally {
             button.disabled = false;
-             button.textContent = scenario === 'journey' ? 'Run journey' : 'Run test';
+             button.textContent = scenario === 'journey' ? 'Run journey' : scenario === 'shell' ? 'Run shell' : 'Run test';
           }
         });
       }

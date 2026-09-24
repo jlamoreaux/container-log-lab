@@ -1,6 +1,7 @@
 import http from "node:http";
 import { createHash, randomUUID } from "node:crypto";
 import { context, propagation, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
+import { runShellDemo } from "./shell-demo.mjs";
 import { shutdownTracing } from "./tracing.mjs";
 
 const port = Number(process.env.PORT ?? 8080);
@@ -80,7 +81,7 @@ const server = http.createServer(async (request, response) => {
     };
 
     try {
-      if (request.method !== "POST" || !["normal", "stdout", "stderr", "slow", "error", "journey"].includes(scenario) || pathname !== `/api/run/${scenario}`) {
+      if (request.method !== "POST" || !["normal", "stdout", "stderr", "slow", "error", "journey", "shell"].includes(scenario) || pathname !== `/api/run/${scenario}`) {
         reply(404, { error: "Unknown scenario" });
         return;
       }
@@ -130,6 +131,11 @@ const server = http.createServer(async (request, response) => {
             record("info", "activity_finished", { requestId, name, label, durationMs: steps.at(-1).durationMs });
           }
           reply(200, { message: "Five activities completed in one request", summary: result });
+          return;
+        }
+        case "shell": {
+          const result = await runShellDemo(requestId, record, steps);
+          reply(200, { message: "Five shell commands completed", ...result });
           return;
         }
         case "error":

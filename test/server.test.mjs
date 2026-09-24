@@ -103,6 +103,19 @@ test("container process emits correlated logs, responses, and OTLP step spans", 
      assert.equal(journeyRun.body.events.filter((event) => event.event === "activity_started").length, 5);
      assert.equal(journeyRun.body.events.filter((event) => event.event === "activity_finished").length, 5);
      assert.ok(journeyRun.body.events.every((event) => event.requestId === "journey-id"));
+     const shellRun = await run("shell", "shell-id", {
+       traceparent: `00-${parentTraceId}-${parentSpanId}-01`,
+     });
+     assert.equal(shellRun.response.status, 200);
+     assert.equal(shellRun.body.completedSteps, 5);
+     assert.equal(shellRun.response.headers.get("x-lab-otel-trace-id"), parentTraceId);
+     assert.deepEqual(shellRun.body.steps.map((item) => item.name), [
+       "shell.locations", "shell.counts", "shell.catalog", "shell.purchase_orders", "shell.inspect",
+     ]);
+     assert.ok(shellRun.body.steps.every((item) => item.label && item.durationMs >= 0 && item.startedAt <= item.finishedAt));
+     assert.equal(shellRun.body.events.filter((event) => event.event === "shell_step_started").length, 5);
+     assert.equal(shellRun.body.events.filter((event) => event.event === "shell_step_finished").length, 5);
+     assert.ok(shellRun.body.events.every((event) => event.requestId === "shell-id"));
      const errorRun = await run("error", "error-id");
      assert.equal(errorRun.response.status, 500);
      assert.ok(errorRun.body.events.some((event) => event.event === "handled_error"));
@@ -110,6 +123,7 @@ test("container process emits correlated logs, responses, and OTLP step spans", 
     assert.ok(stderr.some((event) => event.event === "stderr_sample" && event.requestId === "stderr-id"));
     assert.ok(stderr.some((event) => event.event === "handled_error" && event.requestId === "error-id"));
     assert.ok(stdout.some((event) => event.event === "slow_work_finished" && event.requestId === "slow-id"));
+    assert.ok(stdout.some((event) => event.event === "shell_step_finished" && event.requestId === "shell-id"));
     assert.equal(stdout.filter((event) => event.event === "request_finished" && event.status === 404).length, 0);
   } finally {
     child.kill("SIGTERM");
