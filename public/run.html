@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0d1417" />
+    <title>Run detail — Container Log Lab</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+      :root { color-scheme: dark; --bg:#0d1417; --panel:#172125; --line:#344147; --ink:#edf3ed; --muted:#aab9b6; --orange:#f6ad55; --mint:#93d9b2; --red:#f08b80; --blue:#8db8db; font-family:'IBM Plex Sans',sans-serif; }
+      * { box-sizing:border-box; }
+      body { margin:0; min-height:100vh; background:radial-gradient(circle at 88% 0%,#263a38 0,transparent 38%),var(--bg); color:var(--ink); }
+      .shell { max-width:1100px; margin:auto; padding:32px 28px 80px; }
+      a { color:var(--orange); text-underline-offset:4px; }
+      a:focus-visible { outline:2px solid var(--orange); outline-offset:3px; }
+      header { display:flex; justify-content:space-between; gap:16px; align-items:center; border-bottom:1px solid var(--line); padding-bottom:24px; }
+      .brand,.mono,.eyebrow,.card h2,.meta,.chip,.logs { font-family:'DM Mono',monospace; }
+      .brand { font-size:13px; letter-spacing:.04em; }
+      .back { font-size:12px; }
+      .hero { padding:52px 0 35px; }
+      .eyebrow { color:var(--orange); font-size:11px; letter-spacing:.18em; text-transform:uppercase; }
+      h1 { font-size:clamp(38px,6vw,68px); line-height:1; letter-spacing:-.055em; font-weight:600; margin:16px 0; }
+      .summary { display:flex; flex-wrap:wrap; gap:8px; align-items:center; color:var(--muted); font-size:13px; }
+      .chip { padding:6px 9px; border:1px solid var(--line); border-radius:4px; color:var(--mint); font-size:11px; }
+      .chip.bad { color:var(--red); }
+      .ids { display:grid; gap:5px; margin-top:19px; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
+      .ids b { color:var(--ink); font-weight:500; }
+      .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; margin-top:18px; overflow:hidden; }
+      .card h2 { margin:0; padding:19px 22px; border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.11em; font-weight:500; text-transform:uppercase; }
+      .card-body { padding:22px; }
+      .note { color:var(--muted); font-size:12px; line-height:1.6; margin:0 0 22px; }
+       .lane { display:grid; grid-template-columns:minmax(126px, 210px) minmax(0,1fr) 95px; gap:14px; align-items:center; margin-bottom:17px; font-size:12px; }
+      .lane:last-child { margin-bottom:0; }
+      .track { position:relative; height:22px; border-radius:4px; background:#253338; overflow:hidden; }
+      .bar { position:absolute; height:100%; border-radius:3px; min-width:3px; }
+      .bar.edge { background:var(--orange); }.bar.controller { background:var(--blue); }.bar.process { background:var(--mint); }.bar.phase { background:var(--red); }
+      .duration { text-align:right; color:var(--muted); font-family:'DM Mono',monospace; font-size:11px; }
+      .legend { display:flex; flex-wrap:wrap; gap:15px; margin-top:22px; font-size:11px; color:var(--muted); }
+      .legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; }
+      .breakdown { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-top:24px; }
+      .measure { border:1px solid var(--line); border-radius:5px; padding:14px; background:#1d292d; }
+      .measure .value { display:block; font:500 18px 'DM Mono',monospace; color:var(--ink); margin-bottom:6px; }
+      .measure .caption { color:var(--muted); font-size:11px; line-height:1.5; }
+      .logs { list-style:none; margin:0; padding:0; font-size:11px; line-height:1.6; }
+      .logs li { display:grid; grid-template-columns:100px 145px 1fr; gap:16px; padding:14px 22px; border-bottom:1px solid var(--line); }
+      .logs li:last-child { border-bottom:0; }
+      .logs time,.logs .layer { color:var(--muted); }
+      .logs .event { color:var(--ink); overflow-wrap:anywhere; }
+      .logs .error { color:var(--red); }
+      .details { display:block; color:var(--muted); white-space:pre-wrap; overflow-wrap:anywhere; margin-top:4px; }
+      .empty { color:var(--muted); padding:22px; font-size:13px; }
+       @media(max-width:630px) { .shell { padding:20px 16px 50px; }.lane { grid-template-columns:95px minmax(0,1fr) 65px; gap:8px; font-size:10px; }.logs li { grid-template-columns:1fr; gap:2px; } }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header><div class="brand">CLOUDFLARE / CONTAINER LOG LAB</div><a class="back" href="/">← Run another scenario</a></header>
+      <main>
+        <section class="hero">
+          <div class="eyebrow">Request detail / persisted snapshot</div>
+          <h1 id="title">Loading run…</h1>
+          <div class="summary" id="summary"></div>
+          <div class="ids mono" id="ids"></div>
+        </section>
+        <section class="card" aria-labelledby="timeline-title">
+          <h2 id="timeline-title">01 / Measured timeline</h2>
+           <div class="card-body"><p class="note">Application-measured durations and process activity spans, aligned by captured timestamps. Edge, controller and process are nested; their durations are not additive. Edge ends before the KV write and the HTTP response. This is not the Cloudflare-native trace waterfall.</p><div id="lanes"></div><div class="legend"><span><i style="background:var(--orange)"></i>Edge</span><span><i style="background:var(--blue)"></i>Controller</span><span><i style="background:var(--mint)"></i>Process</span><span><i style="background:var(--red)"></i>Process activity</span></div><div id="breakdown" class="breakdown" aria-label="Gap measurements"></div><p class="note" style="margin:16px 0 0">Readiness is time spent explicitly waiting for the container's port when its state was not healthy. Proxy overhead is proxy round-trip minus Node's process duration; it includes transport and response handling, not just startup. KV time is the first snapshot write; a separate timing-key write follows. Run twice within a minute to compare a stopped and a healthy container.</p></div>
+        </section>
+        <section class="card" aria-labelledby="logs-title"><h2 id="logs-title">02 / Captured request logs</h2><ol class="logs" id="logs"></ol></section>
+      </main>
+    </div>
+    <script>
+      const id = location.pathname.split('/').pop();
+      const $ = (selector) => document.querySelector(selector);
+      function text(tag, content, className) {
+        const element = document.createElement(tag);
+        element.textContent = content;
+        if (className) element.className = className;
+        return element;
+      }
+      async function load() {
+        try {
+           let response;
+           for (let attempt = 0; attempt < 4; attempt++) {
+             response = await fetch(`/api/runs/${encodeURIComponent(id)}`, { cache:'no-store' });
+             if (response.status !== 404 || attempt === 3) break;
+             await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+           }
+          if (!response.ok) throw new Error(response.status === 404 ? 'Run not found or expired (snapshots are kept for 24 hours).' : `Unable to load run (HTTP ${response.status}).`);
+          const run = await response.json();
+          $('#title').textContent = `${run.scenario.toUpperCase()} request`;
+          $('#summary').append(text('span', `HTTP ${run.status}`, `chip${run.status >= 400 ? ' bad' : ''}`), text('span', `Started ${new Date(run.startedAt).toLocaleString()}`));
+          $('#ids').append(text('span', `Request ID  ${run.requestId}`), text('span', `App trace  ${run.appTraceId}`));
+          if (run.otelTraceId) $('#ids').append(text('span', `Node OTel trace  ${run.otelTraceId}`));
+          const start = Date.parse(run.startedAt);
+          const total = Math.max(Number(run.metrics.edgeMs) || 0, Date.parse(run.finishedAt) - start, 1);
+          function lane(label, offset, duration, kind) {
+            const row = text('div', '', 'lane');
+            const track = text('div', '', 'track');
+            const bar = text('div', '', `bar ${kind}`);
+            const left = Math.max(0, Math.min(100, offset / total * 100));
+            bar.style.left = `${left}%`;
+            bar.style.width = `${Math.max(0, Math.min(100 - left, duration / total * 100))}%`;
+            track.append(bar);
+            row.append(text('span', label), track, text('span', `${Math.round(duration)} ms`, 'duration'));
+            $('#lanes').append(row);
+          }
+          lane('Edge', 0, Number(run.metrics.edgeMs) || 0, 'edge');
+          const eventAt = (name) => run.events.find((event) => event.event === name)?.timestamp;
+          if (run.metrics.controllerMs != null) lane('Controller', Math.max(0, Date.parse(eventAt('controller_request_received')) - start || 0), Number(run.metrics.controllerMs), 'controller');
+          if (run.metrics.processMs != null) lane('Process', Math.max(0, Date.parse(eventAt('request_received')) - start || 0), Number(run.metrics.processMs), 'process');
+           for (const step of run.steps) lane(step.label ?? step.name.replace('slow.phase_', 'Phase '), Math.max(0, Date.parse(step.startedAt) - start || 0), step.durationMs, 'phase');
+          function measure(value, caption) {
+            const card = text('div', '', 'measure');
+            card.append(text('span', value, 'value'), text('span', caption, 'caption'));
+            $('#breakdown').append(card);
+          }
+          measure(run.metrics.stateBefore ?? 'unknown', 'Container state before this request');
+          if (run.metrics.readyMs != null) measure(`${run.metrics.readyMs} ms`, 'Wait until container port ready (0 when already healthy)');
+          if (run.metrics.proxyMs != null) measure(`${run.metrics.proxyMs} ms`, 'Proxy round-trip, including process work');
+          if (run.metrics.proxyOverheadMs != null) measure(`${run.metrics.proxyOverheadMs} ms`, 'Proxy round-trip outside Node process time');
+          if (run.metrics.kvWriteMs != null) measure(`${run.metrics.kvWriteMs} ms`, 'First KV snapshot write, after Edge timing');
+          if (!run.events.length) $('#logs').append(text('li', 'No request events were captured.', 'empty'));
+          for (const entry of run.events) {
+            const row = text('li', '');
+            const details = { ...entry };
+            for (const key of ['timestamp','layer','level','event','requestId','instanceId','message']) delete details[key];
+            const content = text('div', '', `event${entry.level === 'error' ? ' error' : ''}`);
+            content.append(text('span', entry.event));
+            if (entry.message && entry.message !== entry.event.replaceAll('_',' ')) content.append(text('span', entry.message, 'details'));
+            if (Object.keys(details).length) content.append(text('span', JSON.stringify(details), 'details'));
+            row.append(text('time', new Date(entry.timestamp).toLocaleTimeString()), text('span', entry.layer, 'layer'), content);
+            $('#logs').append(row);
+          }
+        } catch (error) {
+          $('#title').textContent = 'Run unavailable';
+          $('#summary').append(text('span', error.message));
+          $('#lanes').append(text('p', 'There is no timeline to display.', 'note'));
+        }
+      }
+      load();
+    </script>
+  </body>
+</html>

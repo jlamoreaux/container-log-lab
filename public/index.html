@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0d1417" />
+    <title>Container Log Lab — Cloudflare</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+      :root { color-scheme: dark; --bg: #0d1417; --panel: #172125; --panel-hi: #1d292d; --line: #344147; --ink: #edf3ed; --muted: #aab9b6; --accent: #f6ad55; --mint: #93d9b2; --red: #f08b80; font-family: 'IBM Plex Sans', sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 88% 0%, #263a38 0, transparent 38%), var(--bg); color: var(--ink); }
+      body::before { content: ''; position: fixed; inset: 0; pointer-events: none; opacity: .09; background: repeating-linear-gradient(0deg, transparent 0 31px, #a5c6bd 32px), repeating-linear-gradient(90deg, transparent 0 31px, #a5c6bd 32px); }
+      .shell { position: relative; max-width: 1160px; padding: 32px 28px 80px; margin: auto; }
+      header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 24px; gap: 16px; }
+      .brand { display: flex; align-items: center; gap: 11px; font-family: 'DM Mono', monospace; letter-spacing: .04em; font-size: 13px; font-weight: 500; }
+      .brand-mark { width: 25px; height: 25px; border: 2px solid var(--accent); border-radius: 5px; position: relative; transform: rotate(-8deg); }
+      .brand-mark::after { content: ''; position: absolute; inset: 5px; background: var(--accent); border-radius: 1px; }
+      .header-note, .eyebrow, .label, .meta, button, code, .trace { font-family: 'DM Mono', monospace; }
+      .header-note { color: var(--muted); font-size: 11px; }
+      .hero { padding: 66px 0 48px; max-width: 810px; }
+      .eyebrow { color: var(--accent); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; }
+      h1 { font-size: clamp(46px, 7.2vw, 88px); letter-spacing: -.067em; line-height: .97; margin: 18px 0 24px; font-weight: 600; }
+      .hero p { color: var(--muted); font-size: 17px; line-height: 1.55; max-width: 620px; margin: 0; }
+      .layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(270px, .9fr); gap: 18px; align-items: start; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: 0 20px 48px #0002; }
+      .card-head { display: flex; justify-content: space-between; align-items: center; padding: 19px 22px; border-bottom: 1px solid var(--line); }
+      .label { color: var(--ink); letter-spacing: .11em; text-transform: uppercase; font-size: 11px; }
+      .meta { color: var(--muted); font-size: 11px; }
+      .scenario { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 22px; border-bottom: 1px solid var(--line); }
+      .scenario:last-child { border-bottom: 0; }
+      .index { color: var(--accent); font: 12px 'DM Mono', monospace; }
+      .scenario strong { font-size: 15px; font-weight: 600; }
+      .scenario p { font-size: 12px; color: var(--muted); margin: 5px 0 0; line-height: 1.45; }
+      button { border: 1px solid #62736f; border-radius: 5px; background: transparent; color: var(--ink); padding: 9px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; cursor: pointer; transition: background .15s, border-color .15s, transform .15s; }
+      button:hover { background: var(--accent); border-color: var(--accent); color: #172125; transform: translateY(-1px); }
+      button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+      button:disabled { opacity: .55; cursor: wait; transform: none; }
+      .right { display: grid; gap: 18px; }
+      .steps { padding: 22px; }
+      .steps ol { margin: 20px 0 0; padding-left: 23px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+      .steps li { padding-left: 8px; margin-bottom: 14px; }
+      .steps li:last-child { margin-bottom: 0; }
+      .steps b { color: var(--ink); font-weight: 500; }
+      a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+      .hint { padding: 22px; background: #1c302e; border-color: #476258; }
+      .hint p { font-size: 13px; color: #c7d9cf; line-height: 1.65; margin: 13px 0 0; }
+      .hint code { color: var(--mint); font-size: 12px; }
+      .results { margin-top: 18px; }
+      .results-head { display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 19px 22px; border-bottom: 1px solid var(--line); }
+      .results-head button { padding: 6px 10px; }
+      .empty { color: var(--muted); font-size: 13px; padding: 26px 22px; }
+      .entry { padding: 17px 22px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 78px minmax(0, 1fr) auto; gap: 18px; align-items: center; }
+      .entry:last-child { border-bottom: 0; }
+      .status { font: 11px 'DM Mono', monospace; color: var(--mint); }
+      .status.bad { color: var(--red); }
+      .trace { font-size: 12px; min-width: 0; }
+      .trace strong { display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; }
+      .trace code { color: var(--muted); overflow-wrap: anywhere; font-size: 11px; }
+      .breakdown { display: block; color: var(--mint); font-size: 11px; line-height: 1.7; margin-top: 6px; }
+      .phase-track { display: flex; height: 8px; margin-top: 10px; border-radius: 4px; overflow: hidden; background: var(--panel-hi); border: 1px solid var(--line); }
+      .phase-track span { display: block; height: 100%; }
+      .phase-one { background: var(--accent); }
+      .phase-two { background: var(--mint); }
+      .phase-legend { display: block; color: var(--muted); font-size: 11px; line-height: 1.7; margin-top: 5px; }
+      footer { color: var(--muted); border-top: 1px solid var(--line); margin-top: 52px; padding-top: 22px; font: 11px 'DM Mono', monospace; }
+      @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } .hero { padding-top: 52px; } }
+      @media (max-width: 530px) { .shell { padding: 20px 16px 50px; } .header-note { display: none; } .scenario { grid-template-columns: 25px 1fr; } .scenario button { grid-column: 2; justify-self: start; } .entry { grid-template-columns: 1fr auto; gap: 8px; } .entry .status { grid-column: 1 / -1; } }
+      @media (prefers-reduced-motion: reduce) { button { transition: none; } }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span> CLOUDFLARE / CONTAINER LOG LAB</div>
+        <span class="header-note">OBSERVABILITY TEST BENCH · 001</span>
+      </header>
+      <main>
+        <section class="hero">
+          <div class="eyebrow">Signals, from the inside out</div>
+          <h1>Make the<br />invisible visible.</h1>
+          <p>Trigger real activity in a Cloudflare Container. Compare edge, controller, and process timings against the traces in Cloudflare Observability.</p>
+        </section>
+        <div class="layout">
+          <section class="card" aria-labelledby="controls-title">
+            <div class="card-head"><span class="label" id="controls-title">01 / Run a scenario</span><span class="meta">ONE CONTAINER INSTANCE</span></div>
+            <div class="scenario"><span class="index">01</span><div><strong>Normal request</strong><p>Baseline Worker → container request with matching IDs.</p></div><button data-scenario="normal">Run test</button></div>
+            <div class="scenario"><span class="index">02</span><div><strong>Stdout event</strong><p>Emit a structured informational log from the process.</p></div><button data-scenario="stdout">Run test</button></div>
+            <div class="scenario"><span class="index">03</span><div><strong>Stderr event</strong><p>Emit a diagnostic error log without failing the request.</p></div><button data-scenario="stderr">Run test</button></div>
+            <div class="scenario"><span class="index">04</span><div><strong>Slow request</strong><p>Wait two seconds to make timing visible in traces.</p></div><button data-scenario="slow">Run test</button></div>
+             <div class="scenario"><span class="index">05</span><div><strong>Handled error</strong><p>Return an intentional HTTP 500 with error logs at both layers.</p></div><button data-scenario="error">Run test</button></div>
+             <div class="scenario"><span class="index">06</span><div><strong>Five-activity journey</strong><p>Prepare, filter, aggregate, enrich, and checksum in one request and trace. Open the run timeline to see all five spans.</p></div><button data-scenario="journey">Run journey</button></div>
+          </section>
+          <aside class="right">
+            <section class="card steps" aria-labelledby="guide-title">
+              <span class="label" id="guide-title">02 / Inspect the signals</span>
+              <ol>
+                 <li><b>Run a scenario.</b> Open its run detail to see the captured timeline and logs.</li>
+                <li><b>Open the <a href="https://dash.cloudflare.com/?to=/:account/workers/containers" target="_blank" rel="noopener noreferrer">Containers dashboard</a>.</b> Check live container logs for the same ID.</li>
+                 <li><b>Compare Worker logs and traces.</b> Search for the request ID, then open <code>lab.proxy_to_process</code> to inspect the measured phase durations.</li>
+                <li><b>Wait one minute.</b> Trigger another request to observe shutdown and startup events.</li>
+              </ol>
+            </section>
+             <section class="card hint"><span class="label">A note on layers</span><p><code>edge</code> includes container routing but ends before KV writes; <code>controller</code> includes readiness and proxying; <code>process</code> is measured inside Node.js. These timings are nested, not additive. The run detail splits readiness from proxy overhead and shows KV write time separately. The app trace ID joins all three layers in an OTLP backend; Cloudflare's native trace is separate.</p></section>
+          </aside>
+        </div>
+        <section class="card results" aria-labelledby="results-title">
+          <div class="results-head"><span class="label" id="results-title">03 / Recent activity</span><button id="clear" type="button">Clear list</button></div>
+          <div id="activity" role="status" aria-live="polite"><div class="empty">No activity yet. Run a scenario to begin.</div></div>
+        </section>
+      </main>
+      <footer>LOG LAB / REQUEST IDS LINK THE EDGE TO THE CONTAINER / OBSERVABILITY ENABLED AT 100%</footer>
+    </div>
+    <script>
+      const activity = document.querySelector('#activity');
+      document.querySelector('#clear').addEventListener('click', () => {
+        activity.replaceChildren();
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'No activity yet. Run a scenario to begin.';
+        activity.append(empty);
+      });
+      for (const button of document.querySelectorAll('[data-scenario]')) {
+        button.addEventListener('click', async () => {
+          const scenario = button.dataset.scenario;
+          button.disabled = true;
+          button.textContent = 'Running…';
+          const started = performance.now();
+          try {
+            const response = await fetch(`/api/run/${scenario}`, { method: 'POST' });
+            const result = await response.json();
+             addResult(response.status, scenario, result.requestId ?? response.headers.get('x-request-id') ?? 'unavailable', Math.round(performance.now() - started), {
+               runUrl: response.headers.get('x-lab-run-url'),
+               edge: response.headers.get('x-lab-edge-ms'),
+               worker: response.headers.get('x-lab-worker-ms'),
+               controller: response.headers.get('x-lab-controller-ms'),
+               ready: response.headers.get('x-lab-ready-ms'),
+               proxyOverhead: response.headers.get('x-lab-proxy-overhead-ms'),
+               kvWrite: response.headers.get('x-lab-kv-write-ms'),
+               process: response.headers.get('x-lab-process-ms'),
+               phaseOne: response.headers.get('x-lab-phase-one-ms'),
+               phaseTwo: response.headers.get('x-lab-phase-two-ms'),
+              state: response.headers.get('x-lab-state-before'),
+               otelTraceId: response.headers.get('x-lab-otel-trace-id'),
+               appTraceId: response.headers.get('x-lab-app-trace-id'),
+            });
+          } catch {
+            addResult('NETWORK', scenario, 'unavailable', Math.round(performance.now() - started), {});
+          } finally {
+            button.disabled = false;
+             button.textContent = scenario === 'journey' ? 'Run journey' : 'Run test';
+          }
+        });
+      }
+      function addResult(status, scenario, requestId, duration, metrics) {
+        activity.querySelector('.empty')?.remove();
+        const row = document.createElement('div');
+        row.className = 'entry';
+        const code = document.createElement('span');
+        code.className = `status${status !== 200 ? ' bad' : ''}`;
+        code.textContent = `HTTP ${status}`;
+        const trace = document.createElement('div');
+        trace.className = 'trace';
+        const title = document.createElement('strong');
+        title.textContent = scenario.toUpperCase();
+        const id = document.createElement('code');
+        id.textContent = requestId;
+         trace.append(title, id);
+         if (metrics.runUrl) {
+           const link = document.createElement('a');
+           link.href = metrics.runUrl;
+           link.textContent = 'View timeline + logs →';
+           link.style.cssText = 'display:block;margin-top:8px;font-size:11px';
+           trace.append(link);
+         }
+         if (metrics.appTraceId || metrics.otelTraceId) {
+           const otelId = document.createElement('code');
+           otelId.textContent = `App trace: ${metrics.appTraceId ?? metrics.otelTraceId}`;
+           trace.append(otelId);
+         }
+        const phases = [
+           metrics.edge && `edge ${metrics.edge}ms`,
+           metrics.controller && `controller ${metrics.controller}ms`,
+           metrics.process && `process ${metrics.process}ms`,
+           metrics.ready && `ready ${metrics.ready}ms`,
+           metrics.kvWrite && `KV ${metrics.kvWrite}ms`,
+           metrics.worker && `worker handler ${metrics.worker}ms`,
+          metrics.state && `before: ${metrics.state}`,
+        ].filter(Boolean);
+         if (phases.length) {
+          const breakdown = document.createElement('span');
+          breakdown.className = 'breakdown';
+          breakdown.textContent = phases.join(' · ');
+           trace.append(breakdown);
+         }
+         const processMs = Number(metrics.process);
+         const phaseOneMs = Number(metrics.phaseOne);
+         const phaseTwoMs = Number(metrics.phaseTwo);
+         if (metrics.phaseOne !== null && metrics.phaseTwo !== null && processMs > 0 &&
+             Number.isFinite(phaseOneMs) && Number.isFinite(phaseTwoMs)) {
+           const track = document.createElement('div');
+           track.className = 'phase-track';
+           track.setAttribute('role', 'img');
+           track.setAttribute('aria-label', `Process breakdown: phase one ${phaseOneMs} milliseconds, phase two ${phaseTwoMs} milliseconds`);
+           for (const [className, duration] of [['phase-one', phaseOneMs], ['phase-two', phaseTwoMs]]) {
+             const bar = document.createElement('span');
+             bar.className = className;
+             bar.style.width = `${Math.max(0, Math.min(100, duration / processMs * 100))}%`;
+             track.append(bar);
+           }
+           const legend = document.createElement('span');
+           legend.className = 'phase-legend';
+           legend.textContent = `inside process  ·  phase 1 ${phaseOneMs}ms  /  phase 2 ${phaseTwoMs}ms`;
+           trace.append(track, legend);
+         }
+        const time = document.createElement('span');
+        time.className = 'meta';
+        time.textContent = `${duration} ms`;
+        row.append(code, trace, time);
+        activity.prepend(row);
+        if (activity.children.length > 12) activity.lastElementChild.remove();
+      }
+    </script>
+  </body>
+</html>
