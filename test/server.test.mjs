@@ -116,7 +116,24 @@ test("container process emits correlated logs, responses, and OTLP step spans", 
      assert.equal(shellRun.body.events.filter((event) => event.event === "shell_step_started").length, 5);
      assert.equal(shellRun.body.events.filter((event) => event.event === "shell_step_finished").length, 5);
      assert.ok(shellRun.body.events.every((event) => event.requestId === "shell-id"));
-     const errorRun = await run("error", "error-id");
+      const optInRun = await run("opt-in", "opt-in-id", {
+        traceparent: `00-${parentTraceId}-${parentSpanId}-01`,
+      });
+      assert.equal(optInRun.response.status, 200);
+      assert.equal(optInRun.body.completedCalls, 4);
+      assert.equal(optInRun.response.headers.get("x-lab-otel-trace-id"), parentTraceId);
+      assert.deepEqual(optInRun.body.steps.map((item) => item.name), [
+        "cli.locations", "cli.inventory_counts", "cli.catalog_items", "cli.purchase_orders",
+      ]);
+      assert.ok(optInRun.body.steps.every((item) => item.label && item.durationMs > 0 && item.startedAt <= item.finishedAt));
+      const starts = optInRun.body.events.filter((event) => event.event === "cli_invocation_started");
+      const finishes = optInRun.body.events.filter((event) => event.event === "cli_invocation_finished");
+      assert.equal(starts.length, 4);
+      assert.equal(finishes.length, 4);
+      assert.deepEqual(starts.map((item) => item.invocationId), finishes.map((item) => item.invocationId));
+      assert.ok(optInRun.body.events.every((event) => event.requestId === "opt-in-id"));
+      assert.ok(!JSON.stringify(optInRun.body.events).includes("--format"));
+      const errorRun = await run("error", "error-id");
      assert.equal(errorRun.response.status, 500);
      assert.ok(errorRun.body.events.some((event) => event.event === "handled_error"));
     assert.ok(stdout.some((event) => event.event === "stdout_sample" && event.requestId === "stdout-id"));
@@ -124,6 +141,7 @@ test("container process emits correlated logs, responses, and OTLP step spans", 
     assert.ok(stderr.some((event) => event.event === "handled_error" && event.requestId === "error-id"));
     assert.ok(stdout.some((event) => event.event === "slow_work_finished" && event.requestId === "slow-id"));
     assert.ok(stdout.some((event) => event.event === "shell_step_finished" && event.requestId === "shell-id"));
+     assert.ok(stdout.some((event) => event.event === "cli_invocation_finished" && event.requestId === "opt-in-id"));
     assert.equal(stdout.filter((event) => event.event === "request_finished" && event.status === 404).length, 0);
   } finally {
     child.kill("SIGTERM");
@@ -142,6 +160,51 @@ test("container process emits correlated logs, responses, and OTLP step spans", 
     "container spans should continue a valid upstream traceparent");
   assert.ok(exports.some((entry) => entry.payload.includes(Buffer.from("fedcba9876543210", "hex"))),
     "container.request should preserve the application proxy span as its parent");
+});
+
+test("CLI shim preserves redirected output and exit status while reporting only metadata", async () => {
+  const env = {
+    ...process.env,
+    DEMOCTL_REAL_BIN: `${process.cwd()}/container/mock-bin/democtl`,
+    DEMOCTL_ORIGINAL_PATH: process.env.PATH,
+  };
+  const invoke = async (args, input, overrides = {}) => {
+    const child = spawn(`${process.cwd()}/container/cli-shims/democtl`, args, {
+      env: { ...env, ...overrides }, stdio: ["pipe", "pipe", "pipe", "pipe"],
+    });
+    child.stdin.end(input);
+    const output = async (stream) => {
+      const chunks = [];
+      for await (const chunk of stream) chunks.push(chunk);
+      return Buffer.concat(chunks).toString("utf8");
+    };
+    const [stdout, stderr, telemetry, [exitCode]] = await Promise.all([
+      output(child.stdout), output(child.stderr), output(child.stdio[3]), once(child, "close"),
+    ]);
+    return { stdout, stderr, exitCode, entries: telemetry.trim().split("\n").map(JSON.parse) };
+  };
+  const success = await invoke(["catalog", "item", "list", "--format", "json"]);
+  assert.deepEqual(JSON.parse(success.stdout), [{ id: "item-1", name: "Notebook" }]);
+  assert.equal(success.stderr, "");
+  assert.equal(success.exitCode, 0);
+  assert.deepEqual(success.entries.map((item) => item.event), ["cli_invocation_started", "cli_invocation_finished"]);
+  assert.ok(success.entries.every((item) => item.operation === "catalog_items" && !JSON.stringify(item).includes("--format")));
+  assert.equal(success.entries[0].invocationId, success.entries[1].invocationId);
+
+  const failure = await invoke(["unsupported", "command"]);
+  assert.equal(failure.exitCode, 2);
+  assert.equal(failure.stdout, "");
+  assert.match(failure.stderr, /Unknown mock command/);
+  assert.deepEqual(failure.entries.map((item) => item.event), ["cli_invocation_started", "cli_invocation_failed"]);
+  assert.equal(failure.entries[1].exitCode, 2);
+  assert.equal(failure.entries[1].operation, "other");
+
+  const forwardedInput = await invoke(["-e", "process.stdin.pipe(process.stdout)"], "hello via stdin\n", {
+    DEMOCTL_REAL_BIN: process.execPath,
+  });
+  assert.equal(forwardedInput.exitCode, 0);
+  assert.equal(forwardedInput.stdout, "hello via stdin\n");
+  assert.equal(forwardedInput.entries[1].operation, "other");
 });
 
 test("container prints readable messages with separate span metadata without an OTLP endpoint", async () => {

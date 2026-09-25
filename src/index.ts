@@ -177,7 +177,7 @@ export default {
       return new Response("Not found", { status: 404 });
     }
 
-    const match = /^\/api\/run\/(normal|stdout|stderr|slow|error|journey|shell)$/.exec(url.pathname);
+    const match = /^\/api\/run\/(normal|stdout|stderr|slow|error|journey|shell|opt-in)$/.exec(url.pathname);
     if (!match) return Response.json({ error: "Unknown scenario" }, { status: 404 });
     if (request.method !== "POST") {
       return Response.json({ error: "Use POST" }, { status: 405, headers: { Allow: "POST" } });

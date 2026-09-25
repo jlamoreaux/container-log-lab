@@ -1,0 +1,19 @@
+#!/usr/bin/env node
+
+// A stand-in for any external CLI. Its response travels through the shim
+// unchanged; neither the shim nor the event logs contain the response data.
+const operations = {
+  "locations location list": [180, [{ id: "loc-1", name: "Demo shop" }]],
+  "inventory count batch-get": [280, [{ item: "item-1", quantity: 12 }]],
+  "catalog item list": [140, [{ id: "item-1", name: "Notebook" }]],
+  "inventory purchase-order list": [220, [{ id: "po-1", status: "OPEN" }]],
+};
+const operation = process.argv.slice(2, 5).join(" ");
+const result = operations[operation];
+if (!result) {
+  console.error("Unknown mock command");
+  process.exitCode = 2;
+} else {
+  await new Promise((resolve) => setTimeout(resolve, result[0]));
+  process.stdout.write(`${JSON.stringify(result[1])}\n`);
+}

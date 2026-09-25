@@ -1,0 +1,49 @@
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { writeSync } from "node:fs";
+import { constants } from "node:os";
+
+// Put this executable before the real CLI on PATH. Only this CLI is measured;
+// the shell script and its other commands do not need to know about logging.
+const args = process.argv.slice(2);
+const operations = {
+  "locations location list": "locations",
+  "inventory count batch-get": "inventory_counts",
+  "catalog item list": "catalog_items",
+  "inventory purchase-order list": "purchase_orders",
+};
+const operation = operations[args.slice(0, 3).join(" ")] ?? "other";
+const invocationId = randomUUID();
+const startedAt = new Date().toISOString();
+const started = performance.now();
+
+function report(event, details = {}) {
+  // FD 3 is a dedicated telemetry pipe. stdout and stderr remain the CLI's own
+  // streams, including when it appears in a pipeline or redirects to a file.
+  try {
+    writeSync(3, `${JSON.stringify({ event, invocationId, operation, startedAt, ...details })}\n`);
+  } catch {
+    // Telemetry must never prevent the underlying command from running.
+  }
+}
+
+report("cli_invocation_started");
+const child = spawn(process.env.DEMOCTL_REAL_BIN, args, {
+  stdio: "inherit",
+  env: { ...process.env, PATH: process.env.DEMOCTL_ORIGINAL_PATH ?? process.env.PATH },
+});
+let failed = false;
+child.once("error", (error) => {
+  failed = true;
+  report("cli_invocation_failed", { durationMs: Number((performance.now() - started).toFixed(1)), exitCode: 127, errorCode: error.code });
+  process.exitCode = 127;
+});
+child.once("close", (code, signal) => {
+  if (failed) return;
+  const exitCode = code ?? 128 + (constants.signals[signal] ?? 0);
+  report(exitCode === 0 ? "cli_invocation_finished" : "cli_invocation_failed", {
+    durationMs: Number((performance.now() - started).toFixed(1)), exitCode,
+  });
+  process.exitCode = exitCode;
+});
